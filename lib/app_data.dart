@@ -1,0 +1,530 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/material.dart';
+
+class AppColors {
+  static const Color primaryBlue = Color(0xFF3347D5);
+  static const Color headerBlueTop = Color(0xFF2D41C9);
+  static const Color headerBlueBottom = Color(0xFF384CE0);
+  static const Color bgGrey = Color(0xFFF5F6FA);
+  static const Color cardWhite = Color(0xFFFFFFFF);
+  static const Color textDark = Color(0xFF1A1C24);
+  static const Color textGrey = Color(0xFF7A7F8D);
+  static const Color textLightGrey = Color(0xFF9EA3B0);
+  static const Color borderGrey = Color(0xFFE2E5EC);
+  static const Color iconBgBlue = Color(0xFFEEF0FF);
+  static const Color greenBg = Color(0xFFE6F6EC);
+  static const Color greenText = Color(0xFF1E8E4E);
+  static const Color orangeBg = Color(0xFFFEF4E6);
+  static const Color orangeText = Color(0xFFA86518);
+  static const Color badgeRed = Color(0xFFD91B1B);
+  static const Color signOutRed = Color(0xFFE04F5F);
+}
+
+class LeaveItem {
+  String status;
+  String leaveType;
+  String approvalSubtitle;
+  String outDate;
+  String outTime;
+  String duration;
+  String backDate;
+  String backTime;
+  String reason;
+  String appliedOn;
+  String approvals;
+
+  LeaveItem({
+    required this.status,
+    required this.leaveType,
+    required this.approvalSubtitle,
+    required this.outDate,
+    required this.outTime,
+    required this.duration,
+    required this.backDate,
+    required this.backTime,
+    required this.reason,
+    required this.appliedOn,
+    required this.approvals,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'status': status,
+        'leaveType': leaveType,
+        'approvalSubtitle': approvalSubtitle,
+        'outDate': outDate,
+        'outTime': outTime,
+        'duration': duration,
+        'backDate': backDate,
+        'backTime': backTime,
+        'reason': reason,
+        'appliedOn': appliedOn,
+        'approvals': approvals,
+      };
+
+  factory LeaveItem.fromJson(Map<String, dynamic> json) => LeaveItem(
+        status: json['status'] ?? 'Completed',
+        leaveType: json['leaveType'] ?? 'Home Out New',
+        approvalSubtitle: json['approvalSubtitle'] ?? 'Warden Approved',
+        outDate: json['outDate'] ?? '10 Oct\n2026',
+        outTime: json['outTime'] ?? '05:53 PM',
+        duration: json['duration'] ?? '16 hours',
+        backDate: json['backDate'] ?? '11 Oct\n2026',
+        backTime: json['backTime'] ?? '09:53 AM',
+        reason: json['reason'] ?? 'Others',
+        appliedOn: json['appliedOn'] ?? '10 Oct 2026 05:53PM',
+        approvals: json['approvals'] ?? '2 of 2',
+      );
+}
+
+class NotificationEntry {
+  String dateHeader;
+  String title;
+  String time;
+  bool isSecretEditor;
+
+  NotificationEntry({
+    required this.dateHeader,
+    required this.title,
+    required this.time,
+    this.isSecretEditor = false,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'dateHeader': dateHeader,
+        'title': title,
+        'time': time,
+        'isSecretEditor': isSecretEditor,
+      };
+
+  factory NotificationEntry.fromJson(Map<String, dynamic> json) =>
+      NotificationEntry(
+        dateHeader: json['dateHeader'] ?? '14 OCT 2026',
+        title: json['title'] ?? 'Attendance Marked',
+        time: json['time'] ?? '06:40 PM',
+        isSecretEditor: json['isSecretEditor'] ?? false,
+      );
+}
+
+class AnnouncementEntry {
+  String category;
+  String priority;
+  String message;
+  String author;
+  String dateTime;
+
+  AnnouncementEntry({
+    required this.category,
+    required this.priority,
+    required this.message,
+    required this.author,
+    required this.dateTime,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'category': category,
+        'priority': priority,
+        'message': message,
+        'author': author,
+        'dateTime': dateTime,
+      };
+
+  factory AnnouncementEntry.fromJson(Map<String, dynamic> json) =>
+      AnnouncementEntry(
+        category: json['category'] ?? 'GENERAL',
+        priority: json['priority'] ?? 'Medium',
+        message: json['message'] ?? '',
+        author: json['author'] ?? 'Kumar S',
+        dateTime: json['dateTime'] ?? '14 Oct 2026, 04:33 PM',
+      );
+}
+
+class AppData extends ChangeNotifier {
+  static final AppData instance = AppData._internal();
+
+  AppData._internal() {
+    _initDefaults();
+    loadFromDisk();
+  }
+
+  // Home Screen Info
+  String universityName = 'PRESIDENCY UNIVERSITY';
+  String greetingText = 'Good morning, SYED';
+  String homeDateText = 'Thursday 15 October';
+  String notificationBadge = '95';
+
+  // Student Profile & Hostel Info
+  String studentName = 'SYED ISRAR AHAMED';
+  String gender = 'Male';
+  String studentMobile = '6281545775';
+  String dob = '2008-04-10';
+  String studentEmail = 'syed.israr.ahamed098@gmail.com';
+  String roomNumber = 'AG44';
+  String floor = 'Ground Floor';
+  String blockName = 'Chokkanahalli Boys';
+  String hostelName = 'Chokkanahalli Boys';
+
+  // Father Info (also shown in Parent on File)
+  String parentName = 'SYED KADER VALLI';
+  String parentMobile = '9502860772';
+  String parentEmail = 'syed9550661724@gmail.com';
+  String parentOccupation = '—';
+  String parentAddress = '53 357 ravindra nagar kadapa';
+  String parentCity = '—';
+  String parentState = '—';
+  String parentPinCode = '—';
+
+  // Mother Info
+  String motherName = '—';
+  String motherMobile = '—';
+  String motherEmail = '—';
+  String motherOccupation = '—';
+  String motherAddress = '—';
+  String motherCity = '—';
+  String motherState = '—';
+  String motherPinCode = '—';
+
+  // Guardian Info
+  String guardianName = '—';
+  String guardianMobile = '—';
+  String guardianEmail = '—';
+  String guardianOccupation = '—';
+  String guardianAddress = '—';
+  String guardianCity = '—';
+  String guardianState = '—';
+  String guardianPinCode = '—';
+
+  // Academic Info
+  String course = '—';
+  String stream = '—';
+  String batch = '—';
+
+  // App Settings Info
+  String appVersion = '11.0.0';
+  String webBundle = 'Built-in';
+  String lastUpdated = 'With the app version';
+  String operatingSystem = 'Android';
+  String osVersion = '14';
+  String deviceBrand = 'OPPO';
+  String deviceModel = 'CPH2455';
+  String deviceId = '32d1ed3e7692ca6f';
+  bool hapticFeedback = true;
+
+  // Privacy & Consent
+  String consentStatus = 'Active';
+  String consentVersion = 'DPDPA v1.0';
+  bool notificationsEnabled = true;
+  bool usageAnalyticsEnabled = true;
+
+  // Leave Manager Count & List
+  String totalLeavesText = '18 leaves';
+  List<LeaveItem> leaves = [];
+
+  // Notifications & Announcements Lists
+  List<NotificationEntry> notifications = [];
+  List<AnnouncementEntry> announcements = [];
+
+  String get hostelRoomDot => '$hostelName · $roomNumber';
+  String get hostelRoomSpace => '$hostelName $roomNumber';
+
+  void _initDefaults() {
+    leaves = [
+      LeaveItem(
+        status: 'Completed',
+        leaveType: 'Home Out New',
+        approvalSubtitle: 'Warden Approved',
+        outDate: '10 Oct\n2026',
+        outTime: '05:53 PM',
+        duration: '16 hours',
+        backDate: '11 Oct\n2026',
+        backTime: '09:53 AM',
+        reason: 'Others',
+        appliedOn: '10 Oct 2026 05:53PM',
+        approvals: '2 of 2',
+      ),
+      LeaveItem(
+        status: 'Partially Approved',
+        leaveType: 'Extraordinary Outing',
+        approvalSubtitle: 'Parents Approved',
+        outDate: '09 Oct\n2026',
+        outTime: '08:23 PM',
+        duration: '3 hours',
+        backDate: '09 Oct\n2026',
+        backTime: '11:58 PM',
+        reason: 'Okay',
+        appliedOn: '09 Oct 2026 08:21PM',
+        approvals: '1 of 2',
+      ),
+      LeaveItem(
+        status: 'Completed',
+        leaveType: 'Day Permission',
+        approvalSubtitle: 'Warden Approved',
+        outDate: '09 Oct\n2026',
+        outTime: '03:28 PM',
+        duration: '3 hours',
+        backDate: '09 Oct\n2026',
+        backTime: '06:45 PM',
+        reason: 'Ok',
+        appliedOn: '09 Oct 2026 03:26PM',
+        approvals: '2 of 2',
+      ),
+      LeaveItem(
+        status: 'Completed',
+        leaveType: 'Home Out New',
+        approvalSubtitle: 'Warden Approved',
+        outDate: '07 Oct\n2026',
+        outTime: '04:40 PM',
+        duration: '17 hours',
+        backDate: '08 Oct\n2026',
+        backTime: '09:40 AM',
+        reason: 'Others',
+        appliedOn: '07 Oct 2026 04:38PM',
+        approvals: '2 of 2',
+      ),
+    ];
+
+    notifications = [
+      NotificationEntry(
+        dateHeader: '14 OCT 2026',
+        title: 'Attendance Marked',
+        time: '06:40 PM',
+      ),
+      NotificationEntry(
+        dateHeader: '14 OCT 2026',
+        title: '👋 New Announcement',
+        time: '04:33 PM',
+      ),
+      NotificationEntry(
+        dateHeader: '13 OCT 2026',
+        title: 'Attendance Marked',
+        time: '06:40 PM',
+      ),
+      NotificationEntry(
+        dateHeader: '13 OCT 2026',
+        title: 'Attendance Marked',
+        time: '06:31 PM',
+      ),
+      NotificationEntry(
+        dateHeader: '12 OCT 2026',
+        title: 'Attendance Marked',
+        time: '07:09 PM',
+      ),
+      NotificationEntry(
+        dateHeader: '11 OCT 2026',
+        title: 'Attendance Marked',
+        time: '06:43 PM',
+      ),
+      NotificationEntry(
+        dateHeader: '10 OCT 2026',
+        title: 'Great News: Leave Approved',
+        time: '06:37 PM',
+      ),
+      NotificationEntry(
+        dateHeader: '10 OCT 2026',
+        title: 'Attendance Marked',
+        time: '06:32 PM',
+      ),
+      NotificationEntry(
+        dateHeader: '10 OCT 2026',
+        title: 'Leave Partially Approved',
+        time: '05:54 PM',
+      ),
+      NotificationEntry(
+        dateHeader: '10 OCT 2026',
+        title: 'Leave Request Submitted',
+        time: '05:53 PM',
+      ),
+      NotificationEntry(
+        dateHeader: '09 OCT 2026',
+        title: 'Leave Partially Approved',
+        time: '08:21 PM',
+      ),
+      NotificationEntry(
+        dateHeader: '09 OCT 2026',
+        title: 'Leave Request Submitted',
+        time: '08:21 PM',
+      ),
+      // Very last notification acts as the disguised secret editor trigger
+      NotificationEntry(
+        dateHeader: '09 OCT 2026',
+        title: 'Attendance Marked',
+        time: '06:35 PM',
+        isSecretEditor: true,
+      ),
+    ];
+
+    announcements = [
+      AnnouncementEntry(
+        category: 'GENERAL',
+        priority: 'Medium',
+        message:
+            'Dear Residents, Students who have not yet received their Permanent ID Card are requested to meet their respective floor...',
+        author: 'Kumar S',
+        dateTime: '14 Oct 2026, 04:33 PM',
+      ),
+      AnnouncementEntry(
+        category: 'GENERAL',
+        priority: 'Medium',
+        message:
+            '*IMPORTANT SAFETY ADVISORY – ZERO TOLERANCE* Dear Students, Two serious safety violations have been reported in...',
+        author: 'Kumar S',
+        dateTime: '09 Oct 2026, 08:09 AM',
+      ),
+      AnnouncementEntry(
+        category: 'GENERAL',
+        priority: 'Medium',
+        message:
+            '⚠️ CRITICAL FOOD SAFETY ADVISORY\nDear Students, A serious food-safety concern has been flagged at the...',
+        author: 'Kumar S',
+        dateTime: '07 Oct 2026, 10:59 AM',
+      ),
+    ];
+  }
+
+  void notifyAndSave() {
+    notifyListeners();
+    saveToDisk();
+  }
+
+  void resetToDefaults() {
+    _initDefaults();
+    notifyAndSave();
+  }
+
+  File get _storageFile =>
+      File('${Directory.systemTemp.path}/spacebasic_custom_data_v2.json');
+
+  Future<void> saveToDisk() async {
+    try {
+      final data = {
+        'universityName': universityName,
+        'greetingText': greetingText,
+        'homeDateText': homeDateText,
+        'notificationBadge': notificationBadge,
+        'studentName': studentName,
+        'gender': gender,
+        'studentMobile': studentMobile,
+        'dob': dob,
+        'studentEmail': studentEmail,
+        'roomNumber': roomNumber,
+        'floor': floor,
+        'blockName': blockName,
+        'hostelName': hostelName,
+        'parentName': parentName,
+        'parentMobile': parentMobile,
+        'parentEmail': parentEmail,
+        'parentOccupation': parentOccupation,
+        'parentAddress': parentAddress,
+        'parentCity': parentCity,
+        'parentState': parentState,
+        'parentPinCode': parentPinCode,
+        'motherName': motherName,
+        'motherMobile': motherMobile,
+        'motherEmail': motherEmail,
+        'motherOccupation': motherOccupation,
+        'motherAddress': motherAddress,
+        'motherCity': motherCity,
+        'motherState': motherState,
+        'motherPinCode': motherPinCode,
+        'guardianName': guardianName,
+        'guardianMobile': guardianMobile,
+        'guardianEmail': guardianEmail,
+        'guardianOccupation': guardianOccupation,
+        'guardianAddress': guardianAddress,
+        'guardianCity': guardianCity,
+        'guardianState': guardianState,
+        'guardianPinCode': guardianPinCode,
+        'course': course,
+        'stream': stream,
+        'batch': batch,
+        'appVersion': appVersion,
+        'webBundle': webBundle,
+        'lastUpdated': lastUpdated,
+        'operatingSystem': operatingSystem,
+        'osVersion': osVersion,
+        'deviceBrand': deviceBrand,
+        'deviceModel': deviceModel,
+        'deviceId': deviceId,
+        'totalLeavesText': totalLeavesText,
+        'leaves': leaves.map((e) => e.toJson()).toList(),
+        'notifications': notifications.map((e) => e.toJson()).toList(),
+        'announcements': announcements.map((e) => e.toJson()).toList(),
+      };
+      await _storageFile.writeAsString(jsonEncode(data));
+    } catch (_) {}
+  }
+
+  Future<void> loadFromDisk() async {
+    try {
+      if (await _storageFile.exists()) {
+        final raw = await _storageFile.readAsString();
+        final Map<String, dynamic> data = jsonDecode(raw);
+        universityName = data['universityName'] ?? universityName;
+        greetingText = data['greetingText'] ?? greetingText;
+        homeDateText = data['homeDateText'] ?? homeDateText;
+        notificationBadge = data['notificationBadge'] ?? notificationBadge;
+        studentName = data['studentName'] ?? studentName;
+        gender = data['gender'] ?? gender;
+        studentMobile = data['studentMobile'] ?? studentMobile;
+        dob = data['dob'] ?? dob;
+        studentEmail = data['studentEmail'] ?? studentEmail;
+        roomNumber = data['roomNumber'] ?? roomNumber;
+        floor = data['floor'] ?? floor;
+        blockName = data['blockName'] ?? blockName;
+        hostelName = data['hostelName'] ?? hostelName;
+        parentName = data['parentName'] ?? parentName;
+        parentMobile = data['parentMobile'] ?? parentMobile;
+        parentEmail = data['parentEmail'] ?? parentEmail;
+        parentOccupation = data['parentOccupation'] ?? parentOccupation;
+        parentAddress = data['parentAddress'] ?? parentAddress;
+        parentCity = data['parentCity'] ?? parentCity;
+        parentState = data['parentState'] ?? parentState;
+        parentPinCode = data['parentPinCode'] ?? parentPinCode;
+        motherName = data['motherName'] ?? motherName;
+        motherMobile = data['motherMobile'] ?? motherMobile;
+        motherEmail = data['motherEmail'] ?? motherEmail;
+        motherOccupation = data['motherOccupation'] ?? motherOccupation;
+        motherAddress = data['motherAddress'] ?? motherAddress;
+        motherCity = data['motherCity'] ?? motherCity;
+        motherState = data['motherState'] ?? motherState;
+        motherPinCode = data['motherPinCode'] ?? motherPinCode;
+        guardianName = data['guardianName'] ?? guardianName;
+        guardianMobile = data['guardianMobile'] ?? guardianMobile;
+        guardianEmail = data['guardianEmail'] ?? guardianEmail;
+        guardianOccupation = data['guardianOccupation'] ?? guardianOccupation;
+        guardianAddress = data['guardianAddress'] ?? guardianAddress;
+        guardianCity = data['guardianCity'] ?? guardianCity;
+        guardianState = data['guardianState'] ?? guardianState;
+        guardianPinCode = data['guardianPinCode'] ?? guardianPinCode;
+        course = data['course'] ?? course;
+        stream = data['stream'] ?? stream;
+        batch = data['batch'] ?? batch;
+        appVersion = data['appVersion'] ?? appVersion;
+        webBundle = data['webBundle'] ?? webBundle;
+        lastUpdated = data['lastUpdated'] ?? lastUpdated;
+        operatingSystem = data['operatingSystem'] ?? operatingSystem;
+        osVersion = data['osVersion'] ?? osVersion;
+        deviceBrand = data['deviceBrand'] ?? deviceBrand;
+        deviceModel = data['deviceModel'] ?? deviceModel;
+        deviceId = data['deviceId'] ?? deviceId;
+        totalLeavesText = data['totalLeavesText'] ?? totalLeavesText;
+        if (data['leaves'] != null) {
+          leaves = (data['leaves'] as List)
+              .map((e) => LeaveItem.fromJson(e))
+              .toList();
+        }
+        if (data['notifications'] != null) {
+          notifications = (data['notifications'] as List)
+              .map((e) => NotificationEntry.fromJson(e))
+              .toList();
+        }
+        if (data['announcements'] != null) {
+          announcements = (data['announcements'] as List)
+              .map((e) => AnnouncementEntry.fromJson(e))
+              .toList();
+        }
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+}
