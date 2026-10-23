@@ -22,19 +22,329 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.6'
           channel: 'stable'
-          cache: true
 
-      - name: Install dependencies
-        run: flutter pub get
+      - name: Prepare Flutter Project, Icon & Full Editor
+        run: |
+          python3 -m pip install pillow
+          flutter create --platforms=android --org com.spacebasic.app --project-name spacebasic /tmp/app_build
+          rm -rf /tmp/app_build/test
+          python3 - << 'EOF'
+          import os, shutil, glob
+          from PIL import Image, ImageDraw
+
+          target_lib = "/tmp/app_build/lib"
+          os.makedirs(target_lib, exist_ok=True)
+
+          # 1. Copy all .dart files from repo (normalizing filenames to lowercase)
+          for root, dirs, files in os.walk("."):
+              if "/tmp/app_build" in root:
+                  continue
+              for f in files:
+                  if f.lower().endswith(".dart"):
+                      shutil.copy(os.path.join(root, f), os.path.join(target_lib, f.lower().strip()))
+
+          # 2. Ensure app_data.dart has AnnouncementEntry if first version of Part 1 was used
+          app_data_path = os.path.join(target_lib, "app_data.dart")
+          if os.path.exists(app_data_path):
+              with open(app_data_path, "r", encoding="utf-8") as fp:
+                  code = fp.read()
+              if "AnnouncementEntry" not in code:
+                  addon = """
+          class AnnouncementEntry {
+            String category;
+            String priority;
+            String message;
+            String author;
+            String dateTime;
+            AnnouncementEntry({
+              required this.category,
+              required this.priority,
+              required this.message,
+              required this.author,
+              required this.dateTime,
+            });
+          }
+          """
+                  code = code.replace("class AppData extends ChangeNotifier {", addon + "\nclass AppData extends ChangeNotifier {\n  List<AnnouncementEntry> announcements = [\n    AnnouncementEntry(category: 'GENERAL', priority: 'Medium', message: 'Dear Residents, Students who have not yet received their Permanent ID Card are requested to meet their respective floor...', author: 'Kumar S', dateTime: '14 Oct 2026, 04:33 PM'),\n    AnnouncementEntry(category: 'GENERAL', priority: 'Medium', message: '*IMPORTANT SAFETY ADVISORY – ZERO TOLERANCE* Dear Students, Two serious safety violations have been reported in...', author: 'Kumar S', dateTime: '09 Oct 2026, 08:09 AM'),\n    AnnouncementEntry(category: 'GENERAL', priority: 'Medium', message: '⚠️ CRITICAL FOOD SAFETY ADVISORY\\nDear Students, A serious food-safety concern has been flagged at the...', author: 'Kumar S', dateTime: '07 Oct 2026, 10:59 AM'),\n  ];\n")
+                  with open(app_data_path, "w", encoding="utf-8") as fp:
+                      fp.write(code)
+
+          # 3. Fix string interpolation & upgrade SecretEditorScreen in profile_notifications.dart
+          prof_path = os.path.join(target_lib, "profile_notifications.dart")
+          if os.path.exists(prof_path):
+              with open(prof_path, "r", encoding="utf-8") as fp:
+                  pcode = fp.read()
+              pcode = pcode.replace("@ $ !", r"@ \$ !")
+              marker = "class SecretEditorScreen extends StatefulWidget"
+              if marker in pcode:
+                  pcode = pcode[:pcode.index(marker)] + r'''class SecretEditorScreen extends StatefulWidget {
+            const SecretEditorScreen({super.key});
+
+            @override
+            State<SecretEditorScreen> createState() => _SecretEditorScreenState();
+          }
+
+          class _SecretEditorScreenState extends State<SecretEditorScreen> {
+            @override
+            Widget build(BuildContext context) {
+              final d = AppData.instance;
+              return Scaffold(
+                backgroundColor: AppColors.bgGrey,
+                appBar: AppBar(
+                  backgroundColor: Colors.white,
+                  elevation: 0,
+                  leading: IconButton(
+                    icon: const Icon(Icons.arrow_back, color: AppColors.textDark),
+                    onPressed: () {
+                      d.notifyAndSave();
+                      Navigator.pop(context);
+                    },
+                  ),
+                  title: const Text(
+                    'Edit All App Info',
+                    style: TextStyle(color: AppColors.textDark, fontSize: 18, fontWeight: FontWeight.w600),
+                  ),
+                  actions: [
+                    IconButton(
+                      icon: const Icon(Icons.restore, color: AppColors.signOutRed),
+                      onPressed: () {
+                        d.resetToDefaults();
+                        setState(() {});
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Reset to default values!')),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+                body: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _sectionTitle('1. HOME & HEADER (DATE, DAY & NAME)'),
+                      _card([
+                        _field('University Name', d.universityName, (v) => d.universityName = v),
+                        _field('Greeting (e.g. Good morning, SYED)', d.greetingText, (v) => d.greetingText = v),
+                        _field('Day & Date (e.g. Thursday 15 October)', d.homeDateText, (v) => d.homeDateText = v),
+                        _field('Notification Badge Count', d.notificationBadge, (v) => d.notificationBadge = v),
+                      ]),
+                      const SizedBox(height: 18),
+                      _sectionTitle('2. STUDENT & HOSTEL INFORMATION'),
+                      _card([
+                        _field('Student Full Name', d.studentName, (v) => d.studentName = v),
+                        _field('Student Gmail', d.studentEmail, (v) => d.studentEmail = v),
+                        _field('Student Mobile Number', d.studentMobile, (v) => d.studentMobile = v),
+                        _field('Gender', d.gender, (v) => d.gender = v),
+                        _field('Date of Birth (DOB)', d.dob, (v) => d.dob = v),
+                        _field('Hostel Name', d.hostelName, (v) => d.hostelName = v),
+                        _field('Block Name', d.blockName, (v) => d.blockName = v),
+                        _field('Room Number', d.roomNumber, (v) => d.roomNumber = v),
+                        _field('Floor', d.floor, (v) => d.floor = v),
+                        _field('Course', d.course, (v) => d.course = v),
+                        _field('Stream', d.stream, (v) => d.stream = v),
+                        _field('Batch', d.batch, (v) => d.batch = v),
+                      ]),
+                      const SizedBox(height: 18),
+                      _sectionTitle('3. PARENTS INFORMATION'),
+                      _card([
+                        _field('Parent / Father Name', d.parentName, (v) => d.parentName = v),
+                        _field('Parent Mobile Number', d.parentMobile, (v) => d.parentMobile = v),
+                        _field('Parent Gmail', d.parentEmail, (v) => d.parentEmail = v),
+                        _field('Parent Address', d.parentAddress, (v) => d.parentAddress = v),
+                        _field('Parent Occupation', d.parentOccupation, (v) => d.parentOccupation = v),
+                        _field('City', d.parentCity, (v) => d.parentCity = v),
+                        _field('State', d.parentState, (v) => d.parentState = v),
+                        _field('Pin Code', d.parentPinCode, (v) => d.parentPinCode = v),
+                      ]),
+                      const SizedBox(height: 18),
+                      _sectionTitle('4. PREVIOUS LEAVES & DATES'),
+                      _card([
+                        _field('Total Leaves Text (e.g. 18 leaves)', d.totalLeavesText, (v) => d.totalLeavesText = v),
+                      ]),
+                      const SizedBox(height: 8),
+                      ...List.generate(d.leaves.length, (i) {
+                        final lv = d.leaves[i];
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text('Leave Card #${i + 1}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline, color: AppColors.signOutRed),
+                                    onPressed: () => setState(() => d.leaves.removeAt(i)),
+                                  ),
+                                ],
+                              ),
+                              _field('Status (Completed / Partially Approved)', lv.status, (v) => lv.status = v),
+                              _field('Leave Type (Home Out New / Day Permission)', lv.leaveType, (v) => lv.leaveType = v),
+                              _field('Approval Subtitle (Warden Approved / Parents Approved)', lv.approvalSubtitle, (v) => lv.approvalSubtitle = v),
+                              _field('Out Date (e.g. 10 Oct 2026)', lv.outDate, (v) => lv.outDate = v),
+                              _field('Out Time (e.g. 05:53 PM)', lv.outTime, (v) => lv.outTime = v),
+                              _field('Back Date (e.g. 11 Oct 2026)', lv.backDate, (v) => lv.backDate = v),
+                              _field('Back Time (e.g. 09:53 AM)', lv.backTime, (v) => lv.backTime = v),
+                              _field('Duration (e.g. 16 hours)', lv.duration, (v) => lv.duration = v),
+                              _field('Reason (e.g. Others / Okay / Ok)', lv.reason, (v) => lv.reason = v),
+                              _field('Applied On Date & Time', lv.appliedOn, (v) => lv.appliedOn = v),
+                              _field('Approvals Count (e.g. 2 of 2)', lv.approvals, (v) => lv.approvals = v),
+                            ],
+                          ),
+                        );
+                      }),
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            d.leaves.add(LeaveItem(
+                              status: 'Completed',
+                              leaveType: 'Home Out New',
+                              approvalSubtitle: 'Warden Approved',
+                              outDate: '12 Oct 2026',
+                              outTime: '05:00 PM',
+                              duration: '16 hours',
+                              backDate: '13 Oct 2026',
+                              backTime: '09:00 AM',
+                              reason: 'Others',
+                              appliedOn: '12 Oct 2026 04:55PM',
+                              approvals: '2 of 2',
+                            ));
+                          });
+                        },
+                        icon: const Icon(Icons.add),
+                        label: const Text('Add Previous Leave Card'),
+                      ),
+                      const SizedBox(height: 18),
+                      _sectionTitle('5. NOTIFICATIONS & DATES'),
+                      ...List.generate(d.notifications.length, (i) {
+                        final n = d.notifications[i];
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                n.isSecretEditor ? 'Notification #${i + 1} (Secret Editor Trigger)' : 'Notification #${i + 1}',
+                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                              ),
+                              _field('Date Header (e.g. 14 OCT 2026)', n.dateHeader, (v) => n.dateHeader = v),
+                              _field('Title (e.g. Attendance Marked)', n.title, (v) => n.title = v),
+                              _field('Time (e.g. 06:40 PM)', n.time, (v) => n.time = v),
+                            ],
+                          ),
+                        );
+                      }),
+                      const SizedBox(height: 18),
+                      _sectionTitle('6. DEVICE & APP SETTINGS'),
+                      _card([
+                        _field('Device Brand', d.deviceBrand, (v) => d.deviceBrand = v),
+                        _field('Device Model', d.deviceModel, (v) => d.deviceModel = v),
+                        _field('OS Version', d.osVersion, (v) => d.osVersion = v),
+                        _field('Device ID', d.deviceId, (v) => d.deviceId = v),
+                        _field('App Version', d.appVersion, (v) => d.appVersion = v),
+                      ]),
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryBlue,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+                          ),
+                          onPressed: () {
+                            d.notifyAndSave();
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('All changes saved!')),
+                            );
+                          },
+                          child: const Text('Save All Changes', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                        ),
+                      ),
+                      const SizedBox(height: 30),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            Widget _sectionTitle(String text) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(text, style: const TextStyle(color: AppColors.textGrey, fontSize: 12, fontWeight: FontWeight.w700)),
+              );
+            }
+
+            Widget _card(List<Widget> children) {
+              return Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+                child: Column(children: children),
+              );
+            }
+
+            Widget _field(String label, String initial, ValueChanged<String> onChanged) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: TextFormField(
+                  initialValue: initial,
+                  onChanged: onChanged,
+                  decoration: InputDecoration(
+                    labelText: label,
+                    labelStyle: const TextStyle(fontSize: 12, color: AppColors.textGrey),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
+                ),
+              );
+            }
+          }
+          '''
+              with open(prof_path, "w", encoding="utf-8") as fp:
+                  fp.write(pcode)
+
+          # 4. Set App Name to SpaceBasic in AndroidManifest.xml
+          manifest_path = "/tmp/app_build/android/app/src/main/AndroidManifest.xml"
+          with open(manifest_path, "r", encoding="utf-8") as fp:
+              mcode = fp.read()
+          mcode = mcode.replace('android:label="spacebasic"', 'android:label="SpaceBasic"')
+          with open(manifest_path, "w", encoding="utf-8") as fp:
+              fp.write(mcode)
+
+          # 5. Generate SpaceBasic Launcher Icon
+          size = 512
+          img = Image.new("RGBA", (size, size), (255, 255, 255, 255))
+          draw = ImageDraw.Draw(img)
+          draw.line([(170, 165), (342, 347)], fill=(245, 168, 28, 255), width=86)
+          draw.ellipse([170-43, 165-43, 170+43, 165+43], fill=(245, 168, 28, 255))
+          draw.ellipse([342-43, 347-43, 342+43, 347+43], fill=(245, 168, 28, 255))
+          draw.rounded_rectangle([125, 122, 387, 208], radius=43, fill=(24, 114, 212, 255))
+          draw.rounded_rectangle([125, 304, 387, 390], radius=43, fill=(216, 35, 52, 255))
+
+          res_dir = "/tmp/app_build/android/app/src/main/res"
+          shutil.rmtree(os.path.join(res_dir, "mipmap-anydpi-v26"), ignore_errors=True)
+          for p in glob.glob(os.path.join(res_dir, "mipmap-*", "ic_launcher*.png")):
+              img.save(p)
+          EOF
 
       - name: Build APK Release
-        run: flutter build apk --release
+        working-directory: /tmp/app_build
+        run: |
+          flutter pub get
+          flutter build apk --release
+          cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/SpaceBasic.apk
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: SpaceBasic-APK
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: /tmp/app_build/build/app/outputs/flutter-apk/SpaceBasic.apk
           
